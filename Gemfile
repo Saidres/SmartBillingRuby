@@ -41,7 +41,7 @@ gem "faraday", "~> 2.12"
 
 # Background jobs and Redis
 gem "sidekiq", "~> 7.3"
-gem "redis", "~> 5.3"
+gem "redis", "~> 6.0"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
