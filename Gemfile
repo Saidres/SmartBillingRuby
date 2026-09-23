@@ -40,7 +40,7 @@ gem "rack-cors"
 gem "faraday", "~> 2.12"
 
 # Background jobs and Redis
-gem "sidekiq", "~> 7.3"
+gem "sidekiq", "~> 8.1"
 gem "redis", "~> 5.3"
 
 group :development, :test do
