@@ -1,0 +1,250 @@
+{
+  "info": {
+    "_postman_id": "7a3f81e2-9b28-4e12-8924-f726a4192b10",
+    "name": "Smart Billing & Inventory API",
+    "description": "Colección completa de pruebas para la API REST de gestión de pedidos, facturación multimoneda con cálculo en segundo plano (Sidekiq) y control de stock.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health Check",
+      "item": [
+        {
+          "name": "Check Health Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "health"]
+            },
+            "description": "Verifica que el servicio web y la conexión a la base de datos estén operativos."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Products",
+      "item": [
+        {
+          "name": "List All Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"]
+            },
+            "description": "Obtiene la lista completa de productos disponibles."
+          },
+          "response": []
+        },
+        {
+          "name": "List Active Products Only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products?active=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"],
+              "query": [
+                {
+                  "key": "active",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Filtra el catálogo devolviendo solo los productos vigentes."
+          },
+          "response": []
+        },
+        {
+          "name": "List In-Stock Products Only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products?in_stock=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"],
+              "query": [
+                {
+                  "key": "in_stock",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Filtra únicamente los productos con inventario disponible."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", "1"]
+            },
+            "description": "Obtiene los detalles de un producto específico."
+          },
+          "response": []
+        },
+        {
+          "name": "Create New Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"name\": \"Monitor Gamer 240Hz 27'\",\n    \"sku\": \"TECH-MON-240\",\n    \"description\": \"Monitor IPS Fast IPS 1ms HDR\",\n    \"price_cents\": 44999,\n    \"stock\": 15,\n    \"active\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"]
+            },
+            "description": "Registra un nuevo producto en el catálogo."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Orders",
+      "item": [
+        {
+          "name": "List All Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Obtiene todas las órdenes emitidas en el sistema."
+          },
+          "response": []
+        },
+        {
+          "name": "Filter Orders by Customer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders?customer_id=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"],
+              "query": [
+                {
+                  "key": "customer_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Filtra las órdenes asociadas a un cliente específico."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order Details (with Items & Invoice)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders", "1"]
+            },
+            "description": "Obtiene la orden completa, lista de items comprados y su factura multimoneda asociada."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Order (Success Flow)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 1,\n    \"currency\": \"USD\",\n    \"items\": [\n      {\n        \"product_id\": 3,\n        \"quantity\": 1\n      },\n      {\n        \"product_id\": 4,\n        \"quantity\": 1\n      }\n    ]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Crea una orden atómica, descuenta stock de los productos y encola el job de facturación en segundo plano."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Order - Insufficient Stock (422 Error Flow)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": {\n    \"customer_id\": 1,\n    \"currency\": \"USD\",\n    \"items\": [\n      {\n        \"product_id\": 5,\n        \"quantity\": 1\n      }\n    ]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            },
+            "description": "Demuestra la respuesta 422 y rollback cuando se intenta comprar un producto sin existencias (Sony XM5 con stock 0)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Invoices",
+      "item": [
+        {
+          "name": "Get Invoice Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invoices/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invoices", "1"]
+            },
+            "description": "Consulta la factura emitida, el tipo de cambio del día obtenido por la API externa y los totales en USD y EUR."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

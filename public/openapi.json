@@ -1,0 +1,503 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Smart Billing & Inventory API",
+    "version": "1.0.0",
+    "description": "API RESTful en Ruby on Rails para gestión de pedidos, control atómico de stock, facturación multimoneda y background jobs con Sidekiq y Redis.",
+    "contact": {
+      "name": "Backend Team",
+      "email": "dev@smartbilling.io"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Servidor de Desarrollo Local"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Monitoreo y disponibilidad del servicio"
+    },
+    {
+      "name": "Products",
+      "description": "Gestión de catálogo e inventario de productos"
+    },
+    {
+      "name": "Orders",
+      "description": "Procesamiento atómico de órdenes de compra"
+    },
+    {
+      "name": "Invoices",
+      "description": "Facturas con cálculo de divisas en segundo plano"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Verificar estado de salud de la API",
+        "responses": {
+          "200": {
+            "description": "API y Base de datos operativas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Listar productos con filtros opcionales",
+        "parameters": [
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean" },
+            "description": "Filtrar por productos activos (true/false)"
+          },
+          {
+            "name": "in_stock",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean" },
+            "description": "Filtrar únicamente productos con stock > 0"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de productos obtenida exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Products"],
+        "summary": "Crear un nuevo producto",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Producto creado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Errores de validación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products/{id}": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Obtener detalle de un producto por ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del producto"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle del producto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Producto no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Listar órdenes registradas",
+        "parameters": [
+          {
+            "name": "customer_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "Filtrar por ID del cliente"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["pending", "paid", "failed", "cancelled"] },
+            "description": "Filtrar por estado de la orden"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de órdenes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Crear orden atómica y disparar facturación en segundo plano",
+        "description": "Valida existencias, descuenta inventario dentro de una transacción con bloqueo pesimista y encola el job de facturación en Sidekiq.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Orden creada y facturación encolada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stock insuficiente o producto inactivo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{id}": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Obtener orden detallada con items y factura generada",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID de la orden"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle de orden con items y factura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Orden no encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{id}": {
+      "get": {
+        "tags": ["Invoices"],
+        "summary": "Obtener factura con cálculos de tipo de cambio",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID de la factura"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle de factura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Factura no encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "string", "example": "healthy" },
+              "environment": { "type": "string", "example": "development" },
+              "timestamp": { "type": "string", "example": "2026-09-23T16:20:53Z" },
+              "database": { "type": "boolean", "example": true }
+            }
+          }
+        }
+      },
+      "ProductCreateInput": {
+        "type": "object",
+        "required": ["product"],
+        "properties": {
+          "product": {
+            "type": "object",
+            "required": ["name", "sku", "price_cents", "stock"],
+            "properties": {
+              "name": { "type": "string", "example": "Monitor Curvo 34'" },
+              "sku": { "type": "string", "example": "MON-34-ULTRA" },
+              "description": { "type": "string", "example": "Monitor IPS 144Hz WQHD" },
+              "price_cents": { "type": "integer", "example": 49999 },
+              "stock": { "type": "integer", "example": 20 },
+              "active": { "type": "boolean", "example": true }
+            }
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "MacBook Pro 16' M3" },
+          "sku": { "type": "string", "example": "TECH-MBP-16" },
+          "description": { "type": "string", "example": "Apple M3 Pro 36GB RAM" },
+          "price_cents": { "type": "integer", "example": 249900 },
+          "stock": { "type": "integer", "example": 14 },
+          "active": { "type": "boolean", "example": true },
+          "created_at": { "type": "string", "example": "2026-09-22T19:55:45Z" }
+        }
+      },
+      "ProductResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "$ref": "#/components/schemas/Product" }
+        }
+      },
+      "ProductListResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Product" }
+          }
+        }
+      },
+      "OrderCreateInput": {
+        "type": "object",
+        "required": ["order"],
+        "properties": {
+          "order": {
+            "type": "object",
+            "required": ["customer_id", "items"],
+            "properties": {
+              "customer_id": { "type": "integer", "example": 2 },
+              "currency": { "type": "string", "example": "USD" },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["product_id", "quantity"],
+                  "properties": {
+                    "product_id": { "type": "integer", "example": 2 },
+                    "quantity": { "type": "integer", "example": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "OrderDetailResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "example": 2 },
+              "order_number": { "type": "string", "example": "ORD-20260923-6BA64639" },
+              "status": { "type": "string", "example": "paid" },
+              "currency": { "type": "string", "example": "USD" },
+              "total_cents": { "type": "integer", "example": 59900 },
+              "total_formatted": { "type": "string", "example": "$599.00" },
+              "customer": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "integer", "example": 2 },
+                  "name": { "type": "string", "example": "Mariana Silva" },
+                  "email": { "type": "string", "example": "mariana.silva@innovatech.io" }
+                }
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer", "example": 3 },
+                    "product_id": { "type": "integer", "example": 2 },
+                    "product_name": { "type": "string", "example": "Dell UltraSharp 27' 4K" },
+                    "quantity": { "type": "integer", "example": 1 },
+                    "unit_price_cents": { "type": "integer", "example": 59900 },
+                    "subtotal_formatted": { "type": "string", "example": "$599.00" }
+                  }
+                }
+              },
+              "invoice": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "integer", "example": 2 },
+                  "invoice_number": { "type": "string", "example": "INV-202609-D0BE2B" },
+                  "status": { "type": "string", "example": "issued" },
+                  "target_currency": { "type": "string", "example": "EUR" },
+                  "exchange_rate": { "type": "number", "example": 0.8732 },
+                  "total_target_currency_cents": { "type": "integer", "example": 52305 },
+                  "total_target_currency_formatted": { "type": "string", "example": "EUR 523.05" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "OrderListResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer", "example": 1 },
+                "order_number": { "type": "string", "example": "ORD-20260922-9672ACF8" },
+                "status": { "type": "string", "example": "paid" },
+                "currency": { "type": "string", "example": "USD" },
+                "total_cents": { "type": "integer", "example": 269898 },
+                "total_formatted": { "type": "string", "example": "$2698.98" }
+              }
+            }
+          }
+        }
+      },
+      "InvoiceResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "example": 2 },
+              "invoice_number": { "type": "string", "example": "INV-202609-D0BE2B" },
+              "order_number": { "type": "string", "example": "ORD-20260923-6BA64639" },
+              "currency": { "type": "string", "example": "USD" },
+              "target_currency": { "type": "string", "example": "EUR" },
+              "exchange_rate": { "type": "number", "example": 0.8732 },
+              "total_cents": { "type": "integer", "example": 59900 },
+              "total_formatted": { "type": "string", "example": "$599.00" },
+              "total_target_currency_cents": { "type": "integer", "example": 52305 },
+              "total_target_currency_formatted": { "type": "string", "example": "EUR 523.05" }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "errors": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["Insufficient stock for 'Sony WH-1000XM5'. Available: 0, requested: 1"]
+          }
+        }
+      }
+    }
+  }
+}
