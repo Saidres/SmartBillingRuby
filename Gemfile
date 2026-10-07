@@ -3,7 +3,7 @@ source "https://rubygems.org"
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 # Use postgresql as primary production database and sqlite3 for local dev/testing flexibility
-gem "pg", "~> 1.1"
+gem "pg", "~> 1.7"
 gem "sqlite3", "~> 2.9"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
